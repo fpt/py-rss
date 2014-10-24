@@ -1,0 +1,24 @@
+{
+  "name": "py-rss",
+  "version": "0.0.1",
+  "homepage": "https://github.com/fpt/py-rss",
+  "authors": [
+    "Youichi Fujimoto <yofujimo@gmail.com>"
+  ],
+  "license": "MIT",
+  "private": true,
+  "directory": "static",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "angular-ui-bootstrap-bower": "~0.11.2",
+    "angular": "~1.3.2",
+    "bootstrap": "~3.3.0",
+    "angular-sanitize": "~1.3.2"
+  }
+}

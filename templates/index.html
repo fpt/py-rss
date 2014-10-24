@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+
+<html lang="ja" ng-app="phonecatApp">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Raisin RSS reader</title>
+
+    <!-- Bootstrap -->
+    <link href="/static/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+
+<body ng-controller="PostListCtrl">
+
+<h1>Raisin RSS reader</h1>
+<!-- bootstrap navbar -->
+
+<nav class="navbar navbar-default" role="navigation">
+  <div class="container-fluid">
+    <!-- Brand and toggle get grouped for better mobile display -->
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="#">Brand</a>
+    </div>
+
+    <!-- Collect the nav links, forms, and other content for toggling -->
+    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <ul class="nav navbar-nav">
+        <li class="dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown">Category <span class="caret"></span></a>
+          <ul class="dropdown-menu" role="menu">
+            <li>
+              <a href="#" ng-click="switch_category('all')">All</a>
+            </li>
+            <li ng-repeat="(key, value) in feeds | groupBy: 'category'">
+              <a href="#" ng-click="switch_category(key)">[[ key ]]</a>
+            </li>
+          </ul>
+        </li>
+        <li><a href="/feeds">Feeds</a></li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        <li><a href="#" ng-click="start_crawl()">Crawl</a></li>
+      </ul>
+    </div><!-- /.navbar-collapse -->
+  </div><!-- /.container-fluid -->
+</nav>
+
+
+<div class="container">
+    <div class="row">
+        <h3>[[active_category]]</h3>
+
+        <div>
+            <nav>
+                <ul class="pager">
+                    <li class="previous"><a ng-click="read_newer(first_id)">&larr; newer</a></li>
+                    <li class="next"><a ng-click="read_older(last_id)">older &rarr;</a></li>
+                </ul>
+            </nav>
+
+            <div ng-repeat="post in posts" class="panel panel-default">
+                <div class="panel-heading">
+                    <a href="[[post.link_url]]" target="_blank">[[post.title]]</a>
+                    [[post.feed.title]]
+                </div>
+                <div class="panel-body"><span ng-bind-html="post.summary"></span></div>
+                <div class="panel-footer"></div>
+            </div>
+
+            <nav>
+                <ul class="pager">
+                    <li class="previous"><a ng-click="read_newer(first_id)">&larr; newer</a></li>
+                    <li class="next"><a ng-click="read_older(last_id)">older &rarr;</a></li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<script src="/static/angular/angular.js"></script>
+<script src="/static/jquery/dist/jquery.min.js"></script>
+<script src="/static/bootstrap/dist/js/bootstrap.js"></script>
+<script src="/static/angular-ui-bootstrap-bower/ui-bootstrap.min.js"></script>
+<script src="/static/angular-sanitize/angular-sanitize.min.js"></script>
+<script src="/static/controllers.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/angular-filter/0.4.9/angular-filter.js"></script>
+
+</body>
+</html>
