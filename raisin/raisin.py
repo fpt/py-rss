@@ -6,15 +6,21 @@ import feedparser
 import pykka
 import io, sys
 import pprint
-from pymongo import MongoClient
-from bson.objectid import ObjectId
-import pymongo
+import re
 import datetime
+import logging
+import requests
+import zlib
+
 import xml.etree.ElementTree as etree
 import json
-import logging
 
-import re
+# mongo
+from pymongo import MongoClient
+import gridfs
+from bson.objectid import ObjectId
+import pymongo
+
 
 
 class Persistence(pykka.ThreadingActor):
@@ -27,9 +33,24 @@ class Persistence(pykka.ThreadingActor):
         self.client = client
         self.db = db
 
+        # gridfs
+        self.fs = gridfs.GridFS(self.db)
+
         # index
         db.posts.ensure_index('link_url')
         db.feeds.ensure_index([('feed_url', pymongo.ASCENDING), ('site_url', pymongo.ASCENDING)])
+
+    # gridfs
+
+    def put_fs(self, feed_id, body):
+        return self.fs.put(zlib.compress(body), feed_id = feed_id, )
+
+    def get_fs(self, file_id):
+        f = self.fs.get(file_id)
+        body = zlib.decompress(f.read())
+        return f, body
+
+    # feeds
 
     def get_feeds(self):
         return self.db.feeds
@@ -113,8 +134,13 @@ class Persistence(pykka.ThreadingActor):
     def drop_all(self):
         db = self.db
         logging.debug(db.collection_names())
-        db.test_collection.drop()
         db.feeds.drop()
+        db.posts.drop()
+        db.drop_collection('fs')
+
+    def drop_posts(self):
+        db = self.db
+        logging.debug(db.collection_names())
         db.posts.drop()
 
 
@@ -122,21 +148,50 @@ class FeedFetcher(pykka.ThreadingActor):
     def __init__(self):
         super(FeedFetcher, self).__init__()
 
+
     def fetch(self, feeds, pers):
         for f in feeds.find():
             #logging.debug(pprint.pformat(f))
             if not f.has_key('feed_url'):
                 continue
-            posts = self.parse_feed(f['feed_url'])
-            for p in posts:
-                p['feed_id'] = f['_id']
-                #pprint.pprint(p)
-                pers.add_post(p)
+            file_id = self._fetch_file(f, pers)
+            print(file_id)
+            if not file_id:
+                # TODO: mark as bad feed
+                continue
+            posts = self._parse_stored_feed(file_id, pers)
+            self._store_posts(f, posts, pers)
         return 0
 
+    def _fetch_file(self, feed, pers):
+        #logging.debug(pprint.pformat(f))
+        r = requests.get(feed['feed_url'])
+        if r.status_code != 200:
+            return False
+        body = r.text.encode("UTF-8")
+        file_id = pers.put_fs(feed['_id'], body).get()
+        return file_id
 
-    def parse_feed(self, url):
-        feed = feedparser.parse(url)
+    def _store_posts(self, feed, posts, pers):
+        for p in posts:
+            p['feed_id'] = feed['_id']
+            #pprint.pprint(p)
+            pers.add_post(p)
+
+    def _parse_stored_feed(self, file_id, pers):
+        stored_file, body = pers.get_fs(file_id).get()
+        print(stored_file)
+        #print(body)
+
+        posts = self._parse_feed(body, pers)
+
+        # update file TODO: method
+        pers.fs.get().put(stored_file, parsed_at=datetime.datetime.utcnow())
+
+        return posts
+
+    def _parse_feed(self, body, pers):
+        feed = feedparser.parse(body)
         posts = []
         #d['raw'] = pprint.pformat(feed)
         for e in reversed(feed['entries']):
@@ -166,6 +221,7 @@ class FeedFetcher(pykka.ThreadingActor):
             #print(e['description_detail'])
             #print(e['date'])
             posts.append(d)
+
         return posts
 
 

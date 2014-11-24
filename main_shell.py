@@ -20,6 +20,7 @@ from raisin.raisin import OpmlImporter
 
 # global config
 mongo_url = os.environ.get('MONGODB_URL')
+opml_file = os.environ.get('OPML_FILE')
 #logging.basicConfig(filename='example.log',level=logging.DEBUG)
 logging.basicConfig(level = logging.DEBUG)
 
@@ -62,6 +63,8 @@ class RssShell:
             self._import_opml()
         elif cmd == "add_feed" and len(args) > 1:
             add_source(args[1])
+        elif cmd == "drop_posts":
+            self.pers.drop_posts().get()
         elif cmd == "drop_all":
             self.pers.drop_all().get()
         else:
@@ -88,7 +91,7 @@ class RssShell:
     def _import_opml(self):
         imp = OpmlImporter.start().proxy()
 
-        imp.import_opml('feedly.opml.xml', self.pers).get()
+        imp.import_opml(opml_file, self.pers).get()
 
         imp.stop()
 
