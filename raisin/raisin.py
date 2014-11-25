@@ -12,7 +12,9 @@ import logging
 import requests
 import zlib
 
-import xml.etree.ElementTree as etree
+from lxml import etree
+import lxml.html
+import xml.etree.ElementTree as ElementTree
 import json
 
 # mongo
@@ -86,8 +88,22 @@ class Persistence(pykka.ThreadingActor):
 
     def _process_post(self, feeds, post):
         post['feed'] = feeds[post['feed_id']]
+        if post.has_key('content'):
+            post['content'] = post['content'][0]['value']
         if post.has_key('summary'):
-            post['summary'] = re.sub(r'class="[^"]*"', '', post['summary'])
+            summary = post['summary']
+            if not post.has_key('content'):
+                post['content'] = summary
+
+            try:
+                element = lxml.html.fromstring(summary)
+                summary = "\n".join(element.xpath("//text()"))
+            except etree.XMLSyntaxError:
+                print "html parse error"
+                
+            summary = summary[:200]
+            # post['summary'] = re.sub(r'class="[^"]*"', '', post['summary'])
+            post['summary'] = summary
         return post
 
     def fetch_posts_after(self, count = 10, category = None, post_id = None, unread_only = False):
@@ -228,7 +244,7 @@ class FeedFetcher(pykka.ThreadingActor):
 class OpmlImporter(pykka.ThreadingActor):
 
     def import_opml(self, filename, pers):
-        tree = etree.parse(filename)
+        tree = ElementTree.parse(filename)
         root = tree.getroot()
         first_outlines = root.findall('body/outline')
 
@@ -255,3 +271,4 @@ class OpmlImporter(pykka.ThreadingActor):
         logging.debug(pprint.pformat([title, feed_url, site_url]))
         pers.add_feed(title, feed_url, site_url, cat)
 
+# http://stackoverflow.com/questions/2950131/python-lxml-cleaning-out-html-tags

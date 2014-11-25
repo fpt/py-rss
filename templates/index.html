@@ -69,9 +69,25 @@
                 <div class="panel-heading">
                     <a href="[[post.link_url]]" target="_blank">[[post.title]]</a>
                     [[post.feed.title]]
+                    <i class="glyphicon glyphicon-th-large pull-right" data-toggle="modal" data-target="#myModal[[post._id]]">
+                    </i>
                 </div>
-                <div class="panel-body"><span ng-bind-html="post.summary"></span></div>
-                <div class="panel-footer"></div>
+                <div class="panel-body">
+                    <span ng-bind-html="post.summary"></span>
+                </div>
+
+                <!-- Modal -->
+                <div class="modal fade" id="myModal[[post._id]]" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+                  <div class="modal-dialog" style="width:90%;">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                        <h4 class="modal-title" id="myModalLabel"><a href="[[post.link_url]]" target="_blank">[[post.title]]</a></h4>
+                      </div>
+                      <div class="modal-body" ng-bind-html="post.content" data-dismiss="modal"></div>
+                    </div>
+                  </div>
+                </div>
             </div>
 
             <nav>
