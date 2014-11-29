@@ -84,30 +84,32 @@ class FeedFetcher(pykka.ThreadingActor):
             d['content'] = e['content']
 
         if False:
-            if e.has_key('published_parsed'):
-                d['published'] = e['published_parsed']
-            elif e.has_key('published'):
+            if e.has_key('published'):
                 d['published'] = e['published']
-
-            if e.has_key('updated_parsed'):
-                d['updated'] = e['updated_parsed']
-            elif e.has_key('updated'):
+            if e.has_key('updated'):
                 d['updated'] = e['updated']
         logging.debug(pprint.pformat(e))
         return d
 
     def _parse_feed(self, body, pers, file_id):
         feed = feedparser.parse(body)
-        posts = []
         #d['raw'] = pprint.pformat(feed)
         for e in reversed(feed['entries']):
             parsed_id = pers.add_parsedpost(file_id, e['link'], e).get()
 
+            pers.get_viewpost_queue().get().put({"_id": parsed_id})
+
+        posts = []
+        while pers.get_viewpost_queue().get().size() > 0:
+            job = pers.get_viewpost_queue().get().next()
+            # TODO: is this correct?
+            if not job:
+                break
+
+            parsed_id = job.payload['_id']
+            print("yo " + str(parsed_id))
+
             d = self._make_viewpost(pers, parsed_id)
-            #print(e['description'])
-            #print(e['url'])
-            #print(e['description_detail'])
-            #print(e['date'])
             posts.append(d)
 
         return posts

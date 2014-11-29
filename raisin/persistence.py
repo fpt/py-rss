@@ -37,6 +37,28 @@ class Persistence(pykka.ThreadingActor):
         db.posts.ensure_index('link_url')
         db.feeds.ensure_index([('feed_url', pymongo.ASCENDING), ('site_url', pymongo.ASCENDING)])
 
+        # queue
+        self.parsedpost_queue = MongoQueue(
+            db.viewpost_queue,
+            consumer_id="consumer-1",
+            timeout=300,
+            max_attempts=3)
+        self.viewpost_queue = MongoQueue(
+            db.viewpost_queue,
+            consumer_id="consumer-2",
+            timeout=300,
+            max_attempts=3)
+
+    # queue
+
+    def get_parsedpost_queue(self):
+        return self.parsedpost_queue
+
+    def get_viewpost_queue(self):
+        return self.viewpost_queue
+
+    # history
+
     def put_history(self, data):
         histories = self.db.histories
         hist_id = histories.insert(data)
