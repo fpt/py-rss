@@ -42,6 +42,11 @@ class Persistence(pykka.ThreadingActor):
         db.posts.ensure_index('link_url')
         db.feeds.ensure_index([('feed_url', pymongo.ASCENDING), ('site_url', pymongo.ASCENDING)])
 
+    def put_history(self, data):
+        histories = self.db.histories
+        hist_id = histories.insert(data)
+        return hist_id
+
     # gridfs
 
     def put_fs(self, feed_id, body):
@@ -60,7 +65,7 @@ class Persistence(pykka.ThreadingActor):
     def get_posts(self):
         return self.db.posts
 
-    def add_feed(self, title, feed_url, site_url, cat):
+    def add_feed(self, hist_id, title, feed_url, site_url, cat):
         feeds = self.db.feeds
 
         keys = {
@@ -68,9 +73,10 @@ class Persistence(pykka.ThreadingActor):
             "site_url": site_url,
         }
         data = {
+            'hist_id' : hist_id,
+            "title": title,
             "feed_url": feed_url,
             "site_url": site_url,
-            "title": title,
             "category": cat,
         }
         feed_id = feeds.update(keys, data, upsert = True)
@@ -248,18 +254,21 @@ class OpmlImporter(pykka.ThreadingActor):
         root = tree.getroot()
         first_outlines = root.findall('body/outline')
 
+        # need refactor
+        hist_id = pers.put_history({'type' : 'import', 'filename' : filename}).get()
+
         for fo in first_outlines:
             if (fo.attrib.has_key('type')):
-                self.import_outline(fo, pers)
+                self.import_outline(fo, pers, hist_id)
             else:
                 category = fo.attrib['title']
                 logging.debug(pprint.pformat(category))
                 second_outlines = fo.findall('outline')
                 for so in second_outlines:
-                    self.import_outline(so, pers, category)
+                    self.import_outline(so, pers, hist_id, category)
 
 
-    def import_outline(self, elem, pers, cat = None):
+    def import_outline(self, elem, pers, hist_id, cat = None):
         attrs = elem.attrib
         title = attrs['title']
         feed_url = attrs['xmlUrl']
@@ -269,6 +278,7 @@ class OpmlImporter(pykka.ThreadingActor):
             site_url = attrs['htmlUrl']
 
         logging.debug(pprint.pformat([title, feed_url, site_url]))
-        pers.add_feed(title, feed_url, site_url, cat)
+        pers.add_feed(hist_id, title, feed_url, site_url, cat)
 
 # http://stackoverflow.com/questions/2950131/python-lxml-cleaning-out-html-tags
+# http://stackoverflow.com/questions/19866172/bootstrap-3-accordion-collapse-does-not-work-on-iphone
