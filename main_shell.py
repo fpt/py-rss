@@ -13,7 +13,8 @@ import datetime
 import xml.etree.ElementTree as etree
 import json
 import logging
-from raisin.raisin import Persistence
+
+from raisin.persistence import Persistence
 from raisin.raisin import FeedFetcher
 from raisin.raisin import OpmlImporter
 

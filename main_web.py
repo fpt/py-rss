@@ -6,7 +6,7 @@ from flask_oauth import OAuth
 import logging
 from logging.handlers import RotatingFileHandler
 
-from raisin.raisin import Persistence
+from raisin.persistence import Persistence
 from raisin.raisin import FeedFetcher
 from raisin.raisin import OpmlImporter
 import pprint

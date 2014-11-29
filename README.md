@@ -36,7 +36,7 @@ py-rss
     * key: user_id, category_id, feedsource_id
 * FeedSources
     * key: _id, feed_url, site_url
-* RawFeed
+* RawFeed (GridFS)
     * key: _id, feed_id
 * ParsedPost
     * key: _id, rawfeed_id
