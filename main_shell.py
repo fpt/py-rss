@@ -27,8 +27,9 @@ logging.basicConfig(level = logging.DEBUG)
 
 
 class RssShell:
-    def __init__(self, pers):
+    def __init__(self, pers, crawler):
         self.pers = pers
+        self.crawler = crawler
         pass
 
     def run(self):
@@ -97,21 +98,21 @@ class RssShell:
         imp.stop()
 
     def _crawl(self):
-        fetcher = FeedFetcher.start().proxy()
+        f = self.crawler.fetch(self.pers)
 
-        fetcher.fetch(self.pers)
-
-        fetcher.stop()
+        logging.info({'action' : 'crawl', 'result' : f.get()})
 
         return 0
 
 
 if __name__ == '__main__':
     pers = Persistence.start(mongo_url).proxy()
+    crawler = FeedFetcher.start().proxy()
 
-    s = RssShell(pers)
+    s = RssShell(pers, crawler)
     s.run()
 
+    crawler.stop()
     pers.stop()
 
 

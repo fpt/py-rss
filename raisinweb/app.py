@@ -118,8 +118,6 @@ def crawl_trigger():
 
     crawler.fetch(pers)
 
-    crawler.stop()
-
     return jsonify({'result' : 'success'})
 
 
@@ -205,8 +203,12 @@ def app_initialize(mongo_url):
 
 
 def app_terminate():
-    global pers
-    pers.stop()
+    global pers, crawler
+
+    if pers:
+        pers.stop()
+    if crawler:
+        crawler.stop()
 
 
 # http://flask.pocoo.org/docs/0.10/quickstart/#static-files

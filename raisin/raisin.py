@@ -42,7 +42,7 @@ class FeedFetcher(pykka.ThreadingActor):
 
         futures = [c.run(pers) for c in crawlers]
         f = futures[0].join(*futures[1:])
-        print("=== crawler_get: " + str(f.get()))
+        logging.debug({'action' : 'fetcher_crawler', 'result' : f.get()})
         for c in crawlers:
             c.stop()
 
@@ -70,10 +70,10 @@ class CrawlerWorker(pykka.ThreadingActor):
         super(CrawlerWorker, self).__init__()
 
     def _fetch_file(self, feed, pers):
-        #logging.debug(pprint.pformat(f))
         r = requests.get(feed['feed_url'])
+        logging.debug({'feed_url' : feed['feed_url'], 'status_code' : r.status_code})
         if r.status_code != 200:
-            return False
+            return None
         body = r.text.encode("UTF-8")
         file_id = pers.put_fs(feed['_id'], body).get()
         return file_id
@@ -85,21 +85,20 @@ class CrawlerWorker(pykka.ThreadingActor):
             if not job:
                 break
             if not job.payload.has_key('feed_id'):
-                print("invalid job in crawl_queue: " + str(job))
+                logging.error({'action' : 'crawlerworker.run', 'msg' : 'invalid job in crawl_queue', 'param' : job})
                 continue
 
             feed_id = job.payload['feed_id']
-            print("work feed_id: " + str(feed_id))
 
             f = pers.get_feed(feed_id).get()
-            #logging.debug(pprint.pformat(f))
             if not f.has_key('feed_url'):
+                logging.info({'action' : 'crawlerworker.run', 'msg' : 'feed ignored', 'param' : f})
                 continue
 
             file_id = self._fetch_file(f, pers)
-            print("file_id: " + str(file_id))
+            logging.info({'action' : 'crawlerworker.run.fetch', 'result' : file_id})
             if not file_id:
-                # TODO: mark as bad feed
+                logging.info({'action' : 'crawlerworker.run', 'msg' : 'maybe bad feed', 'param' : feed_id})
                 continue
             pers.get_parsedpost_queue().get().put({"file_id": file_id, "feed_id": feed_id})
 
@@ -110,8 +109,7 @@ class ParserWorker:
 
     def _parse_stored_feed(self, pers, file_id):
         stored_file, body, feed_id = pers.get_fs(file_id).get()
-        print(stored_file)
-        #print(body)
+        logging.info({'action' : 'ParserWorker._parse_stored_feed', 'file' : stored_file})
 
         posts = self._parse_feed(body, pers, file_id, feed_id)
 
@@ -122,7 +120,6 @@ class ParserWorker:
 
     def _parse_feed(self, body, pers, file_id, feed_id):
         feed = feedparser.parse(body)
-        #d['raw'] = pprint.pformat(feed)
         for e in reversed(feed['entries']):
             parsed_id = pers.add_parsedpost(file_id, e['link'], e).get()
 
@@ -135,12 +132,12 @@ class ParserWorker:
             if not job:
                 break
             if not job.payload.has_key('file_id') or not job.payload.has_key('feed_id'):
-                print("invalid job in persepost_queue: " + str(job))
+                logging.error({'action' : 'ParserWorker.run', 'msg' : 'invalid job in persepost_queue', 'param' : job})
                 continue
 
             file_id = job.payload['file_id']
             feed_id = job.payload['feed_id']
-            print("work file_id: " + str(file_id))
+            logging.info({'action' : 'ParserWorker.run', 'file_id' : file_id, 'param' : file_id})
 
             posts = self._parse_stored_feed(pers, file_id)
 
@@ -152,7 +149,6 @@ class ViewPostWorker:
         e = pers.get_parsedpost_body(parsed_id).get()
 
         d = dict()
-        #logging.debug(pprint.pformat(e))
         d['title'] = e['title']
         d['link_url'] = e['link']
         if e.has_key('summary'):
@@ -165,12 +161,10 @@ class ViewPostWorker:
                 d['published'] = e['published']
             if e.has_key('updated'):
                 d['updated'] = e['updated']
-        #logging.debug(pprint.pformat(e))
         return d
 
     def _store_post(self, feed_id, post, pers):
         post['feed_id'] = feed_id
-        #pprint.pprint(p)
         pers.add_viewpost(post)
 
     def run(self, pers):
@@ -180,12 +174,12 @@ class ViewPostWorker:
             if not job:
                 break
             if not job.payload.has_key('parsed_id') or not job.payload.has_key('feed_id'):
-                print("invalid job in viewpost_queue: " + str(job))
+                logging.error({'action' : 'parserworker.run', 'msg' : 'invalid job in viewpost_queue', 'param' : job})
                 continue
 
             parsed_id = job.payload['parsed_id']
             feed_id = job.payload['feed_id']
-            print("parsed_id " + str(parsed_id))
+            logging.debug({'action' : 'viewpostworker_run', 'parsed_id' : parsed_id})
 
             viewpost = self._make_viewpost(pers, parsed_id)
 
@@ -209,7 +203,7 @@ class OpmlImporter(pykka.ThreadingActor):
                 self.import_outline(fo, pers, hist_id)
             else:
                 category = fo.attrib['title']
-                logging.debug(pprint.pformat(category))
+                logging.debug({'action' : 'import_opml', 'param' : category})
                 second_outlines = fo.findall('outline')
                 for so in second_outlines:
                     self.import_outline(so, pers, hist_id, category)
@@ -224,7 +218,7 @@ class OpmlImporter(pykka.ThreadingActor):
         if attrs.has_key('htmlUrl'):
             site_url = attrs['htmlUrl']
 
-        logging.debug(pprint.pformat([title, feed_url, site_url]))
+        logging.debug({'action' : 'import_outline', 'param' : [title, feed_url, site_url]})
         pers.add_feed(hist_id, title, feed_url, site_url, cat)
 
 # http://stackoverflow.com/questions/2950131/python-lxml-cleaning-out-html-tags
