@@ -147,8 +147,8 @@ class Persistence(pykka.ThreadingActor):
         if not item_dict.has_key('link_url'):
             return 1 # error
         idx_dict = {'link_url': item_dict['link_url']}
-        post_id = posts.update(idx_dict, item_dict, upsert = True)
-        logging.debug(post_id)
+        result = posts.update(idx_dict, item_dict, upsert = True)
+        #logging.debug(result)
 
     def _process_post(self, feeds, post):
         post['feed'] = feeds[post['feed_id']]
@@ -219,12 +219,18 @@ class Persistence(pykka.ThreadingActor):
         db.viewposts.drop()
         db.drop_collection('fs')
 
+        db.crawl_queue.drop()
+        db.parsedpost_queue.drop()
+        db.viewpost_queue.drop()
+
     def drop_posts(self):
         db = self.db
         logging.debug(db.collection_names())
         db.parsedposts.drop()
         db.viewposts.drop()
 
+        db.parsedpost_queue.drop()
+        db.viewpost_queue.drop()
 
 # http://stackoverflow.com/questions/2950131/python-lxml-cleaning-out-html-tags
 # http://stackoverflow.com/questions/19866172/bootstrap-3-accordion-collapse-does-not-work-on-iphone

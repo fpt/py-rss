@@ -34,8 +34,17 @@ class FeedFetcher(pykka.ThreadingActor):
         init = FetcherInitiator()
         init.run(pers)
 
-        crawler = CrawlerWorker()
-        crawler.run(pers)
+        num_crawler = 3
+        crawlers = []
+        for i in range(num_crawler):
+            crawler = CrawlerWorker.start().proxy()
+            crawlers.append(crawler)
+
+        futures = [c.run(pers) for c in crawlers]
+        f = futures[0].join(*futures[1:])
+        print("=== crawler_get: " + str(f.get()))
+        for c in crawlers:
+            c.stop()
 
         parser = ParserWorker()
         parser.run(pers)
@@ -56,7 +65,9 @@ class FetcherInitiator():
         return 0
 
 
-class CrawlerWorker:
+class CrawlerWorker(pykka.ThreadingActor):
+    def __init__(self):
+        super(CrawlerWorker, self).__init__()
 
     def _fetch_file(self, feed, pers):
         #logging.debug(pprint.pformat(f))
@@ -174,7 +185,7 @@ class ViewPostWorker:
 
             parsed_id = job.payload['parsed_id']
             feed_id = job.payload['feed_id']
-            print("yo " + str(parsed_id))
+            print("parsed_id " + str(parsed_id))
 
             viewpost = self._make_viewpost(pers, parsed_id)
 
