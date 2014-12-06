@@ -83,7 +83,7 @@ class RssShell:
 
 
     def _dump_posts(self):
-        posts = self.pers.get_posts().get()
+        posts = self.pers.get_viewposts().get()
 
         posts = posts.find()
         for ar in posts:
@@ -98,9 +98,8 @@ class RssShell:
 
     def _crawl(self):
         fetcher = FeedFetcher.start().proxy()
-        feeds = self.pers.get_feeds().get()
 
-        fetcher.fetch(feeds, self.pers)
+        fetcher.fetch(self.pers)
 
         fetcher.stop()
 

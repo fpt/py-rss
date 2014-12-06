@@ -34,12 +34,23 @@ class Persistence(pykka.ThreadingActor):
         self.fs = gridfs.GridFS(self.db)
 
         # index
-        db.posts.ensure_index('link_url')
+        db.parsedposts.ensure_index('rawfeed_id')
+        db.parsedposts.ensure_index('post_url')
+        #db.parsedposts.ensure_index('feed_id')
+
+        db.viewposts.ensure_index('link_url')
+        db.viewposts.ensure_index('feed_id')
+        
         db.feeds.ensure_index([('feed_url', pymongo.ASCENDING), ('site_url', pymongo.ASCENDING)])
 
         # queue
+        self.crawl_queue = MongoQueue(
+            db.crawl_queue,
+            consumer_id="consumer-1",
+            timeout=300,
+            max_attempts=3)
         self.parsedpost_queue = MongoQueue(
-            db.viewpost_queue,
+            db.parsedpost_queue,
             consumer_id="consumer-1",
             timeout=300,
             max_attempts=3)
@@ -50,6 +61,9 @@ class Persistence(pykka.ThreadingActor):
             max_attempts=3)
 
     # queue
+
+    def get_crawl_queue(self):
+        return self.crawl_queue
 
     def get_parsedpost_queue(self):
         return self.parsedpost_queue
@@ -72,7 +86,7 @@ class Persistence(pykka.ThreadingActor):
     def get_fs(self, file_id):
         f = self.fs.get(file_id)
         body = zlib.decompress(f.read())
-        return f, body
+        return f, body, f.feed_id
 
     # parsedpost
 
@@ -102,8 +116,12 @@ class Persistence(pykka.ThreadingActor):
     def get_feeds(self):
         return self.db.feeds
 
-    def get_posts(self):
-        return self.db.posts
+    def get_feed(self, feed_id):
+        feed = self.db.feeds.find_one({"_id": feed_id})
+        return feed
+
+    def get_viewposts(self):
+        return self.db.viewposts
 
     def add_feed(self, hist_id, title, feed_url, site_url, cat):
         feeds = self.db.feeds
@@ -123,8 +141,8 @@ class Persistence(pykka.ThreadingActor):
         #print(feed_id)
         #print(feeds.find_one({"_id": feed_id}))
 
-    def add_post(self, item_dict):
-        posts = self.db.posts
+    def add_viewpost(self, item_dict):
+        posts = self.db.viewposts
 
         if not item_dict.has_key('link_url'):
             return 1 # error
@@ -145,7 +163,7 @@ class Persistence(pykka.ThreadingActor):
                 element = lxml.html.fromstring(summary)
                 summary = "\n".join(element.xpath("//text()"))
             except etree.XMLSyntaxError:
-                print "html parse error"
+                print("html parse error")
                 
             summary = summary[:200]
             # post['summary'] = re.sub(r'class="[^"]*"', '', post['summary'])
@@ -172,7 +190,7 @@ class Persistence(pykka.ThreadingActor):
         else:
             cat_feeds = feeds.find()
 
-        posts = self.get_posts()
+        posts = self.get_viewposts()
 
         print(category)
         print(prev_post_id)
@@ -197,13 +215,15 @@ class Persistence(pykka.ThreadingActor):
         db = self.db
         logging.debug(db.collection_names())
         db.feeds.drop()
-        db.posts.drop()
+        db.parsedposts.drop()
+        db.viewposts.drop()
         db.drop_collection('fs')
 
     def drop_posts(self):
         db = self.db
         logging.debug(db.collection_names())
-        db.posts.drop()
+        db.parsedposts.drop()
+        db.viewposts.drop()
 
 
 # http://stackoverflow.com/questions/2950131/python-lxml-cleaning-out-html-tags

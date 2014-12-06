@@ -116,8 +116,7 @@ def crawl_trigger():
     if not crawler:
         crawler = FeedFetcher.start().proxy()
 
-    feeds = pers.get_feeds().get()
-    crawler.fetch(feeds, pers)
+    crawler.fetch(pers)
 
     crawler.stop()
 
