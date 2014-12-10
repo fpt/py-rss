@@ -68,7 +68,7 @@
             <div ng-repeat="post in posts" class="panel panel-default">
                 <div class="panel-heading">
                     <a href="[[post.link_url]]" target="_blank">[[post.title]]</a>
-                    [[post.feed.title]]
+                    [[post.feed.title]]&nbsp;([[post.updated_at]])
                     <a data-toggle="modal" data-target="#myModal[[post._id]]" href="#">
                       <i class="glyphicon glyphicon-th-large pull-right"></i>
                     </a>

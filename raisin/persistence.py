@@ -34,14 +34,20 @@ class Persistence(pykka.ThreadingActor):
         self.fs = gridfs.GridFS(self.db)
 
         # index
-        db.parsedposts.ensure_index('rawfeed_id')
-        db.parsedposts.ensure_index('post_url')
-        #db.parsedposts.ensure_index('feed_id')
+        db.feeds.ensure_index([('feed_url', pymongo.HASHED)])
+        db.feeds.ensure_index([('site_url', pymongo.HASHED)])
 
-        db.viewposts.ensure_index('link_url')
-        db.viewposts.ensure_index('feed_id')
-        
-        db.feeds.ensure_index([('feed_url', pymongo.ASCENDING), ('site_url', pymongo.ASCENDING)])
+        db.parsedposts.ensure_index('file_id')
+        db.parsedposts.ensure_index([('post_url', pymongo.ASCENDING)], unique=True)
+
+        db.viewposts.ensure_index([('link_url', pymongo.ASCENDING)], unique=True)
+        db.viewposts.ensure_index([('feed_id', pymongo.ASCENDING)])
+
+        db.system_histories.ensure_index([('action', pymongo.HASHED)])
+        db.system_histories.ensure_index([('created_at', pymongo.DESCENDING)])
+
+        db.user_histories.ensure_index([('user_id', pymongo.ASCENDING), ('action', pymongo.ASCENDING)])
+        db.user_histories.ensure_index([('created_at', pymongo.DESCENDING)])
 
         # queue
         self.crawl_queue = MongoQueue(
@@ -73,10 +79,17 @@ class Persistence(pykka.ThreadingActor):
 
     # history
 
-    def put_history(self, data):
-        histories = self.db.histories
-        hist_id = histories.insert(data)
+    def put_system_history(self, data):
+        hists = self.db.system_histories
+        data['created_at'] = datetime.datetime.utcnow()
+        logging.debug({'action' : 'put_system_history', 'data' : data})
+        hist_id = hists.insert(data)
         return hist_id
+
+    def get_last_system_history(self, action):
+        hist = self.db.system_histories.sort('created_at',pymongo.DESCENDING).find({"action": action}).limit(1)
+        logging.debug({'action' : 'get_last_system_history', 'data' : hist})
+        return hist
 
     # gridfs
 
@@ -97,14 +110,15 @@ class Persistence(pykka.ThreadingActor):
         else:
             None
 
-    def add_parsedpost(self, rawfeed_id, post_url, data):
+    def add_parsedpost(self, feed_id, file_id, post_url, data):
         posts = self.db.parsedposts
 
         keys = {
             "post_url": post_url,
         }
         data = {
-            'rawfeed_id' : rawfeed_id,
+            'feed_id' : feed_id,
+            'file_id' : file_id,
             "post_url": post_url,
             "data": data,
         }
@@ -228,6 +242,9 @@ class Persistence(pykka.ThreadingActor):
         db.feeds.drop()
         db.parsedposts.drop()
         db.viewposts.drop()
+        db.histories.drop()
+        db.system_histories.drop()
+        db.user_histories.drop()
         db.drop_collection('fs')
 
         db.crawl_queue.drop()

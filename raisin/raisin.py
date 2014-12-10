@@ -79,7 +79,13 @@ class CrawlerWorker(pykka.ThreadingActor):
             logging.error({'feed_url' : feed['feed_url'], 'error' : sys.exc_info()[0]})
             return None
 
-        logging.debug({'feed_url' : feed['feed_url'], 'status_code' : r.status_code})
+        hist = {'action' : 'crawl', 'feed_id' : feed['_id'], 'feed_url' : feed['feed_url'], 'status_code' : r.status_code}
+        if 'etag' in r.headers.keys(): # CaseInsensitiveDict.has_key is not available
+            hist['http-etag'] = r.headers['etag']
+        if 'last-modified' in r.headers.keys():
+            hist['http-last-modified'] = r.headers['last-modified']
+        pers.put_system_history(hist)
+
         if r.status_code != 200:
             return None
         body = r.text.encode("UTF-8")
@@ -145,27 +151,7 @@ class ParserWorker:
     def _parse_feed(self, body, pers, file_id, feed_id):
         feed = feedparser.parse(body)
         for e in reversed(feed['entries']):
-            if e.has_key('updated'):
-                upd_str = e['updated']
-                upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
-                e['updated_at'] = upd_dt
-            elif e.has_key('data') and e['data'].has_key('updated'):
-                upd_str = e['data']['updated']
-                upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
-                e['updated_at'] = upd_dt
-            elif e.has_key('summary_detail') and e['summary_detail'].has_key('updated'):
-                upd_str = e['summary_detail']['updated']
-                upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
-                e['updated_at'] = upd_dt
-            elif e.has_key('published'):
-                upd_str = e['published']
-                upd_dt = dateutil.parser.parse(upd_str, yearfirst=False, dayfirst=True)
-                e['updated_at'] = upd_dt
-            else:
-                logging.info({'action' : 'ParserWorker._parse_feed', 'msg' : 'no data.updated field', 'param' : e})
-                e['updated_at'] = datetime.datetime.utcnow()
-
-            parsed_id = pers.add_parsedpost(file_id, e['link'], e).get()
+            parsed_id = pers.add_parsedpost(feed_id, file_id, e['link'], e).get()
 
             pers.get_viewpost_queue().get().put({"parsed_id": parsed_id, "feed_id": feed_id})
 
@@ -200,11 +186,26 @@ class ViewPostWorker:
         if e.has_key('content'):
             d['content'] = e['content']
 
-        if False:
-            if e.has_key('published'):
-                d['published'] = e['published']
-            if e.has_key('updated'):
-                d['updated'] = e['updated']
+        if e.has_key('updated'):
+            upd_str = e['updated']
+            upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
+            d['updated_at'] = upd_dt
+        elif e.has_key('data') and e['data'].has_key('updated'):
+            upd_str = e['data']['updated']
+            upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
+            d['updated_at'] = upd_dt
+        elif e.has_key('summary_detail') and e['summary_detail'].has_key('updated'):
+            upd_str = e['summary_detail']['updated']
+            upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
+            d['updated_at'] = upd_dt
+        elif e.has_key('published'):
+            upd_str = e['published']
+            upd_dt = dateutil.parser.parse(upd_str, yearfirst=False, dayfirst=True)
+            d['updated_at'] = upd_dt
+        else:
+            logging.info({'action' : 'ViewPostWorker._make_viewpost', 'msg' : 'no data.updated field', 'param' : e})
+            d['updated_at'] = datetime.datetime.utcnow()
+
         return d
 
     def _store_post(self, feed_id, post, pers):
@@ -240,7 +241,7 @@ class OpmlImporter(pykka.ThreadingActor):
         first_outlines = root.findall('body/outline')
 
         # need refactor
-        hist_id = pers.put_history({'type' : 'import', 'filename' : filename}).get()
+        hist_id = pers.put_system_history({'action' : 'import', 'filename' : filename}).get()
 
         for fo in first_outlines:
             if (fo.attrib.has_key('type')):

@@ -9,6 +9,6 @@ lxml==3.4.0
 pymongo==2.6.3
 gunicorn==19.0.0
 static3==0.5.1
-requests==2.4.3
+requests==2.5.0
 python-dateutil==2.2
 mongoqueue==0.7.2
