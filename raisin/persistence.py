@@ -120,8 +120,14 @@ class Persistence(pykka.ThreadingActor):
         feed = self.db.feeds.find_one({"_id": feed_id})
         return feed
 
-    def get_viewposts(self):
-        return self.db.viewposts
+    def put_feed(self, feed):
+        feeds = self.db.feeds
+
+        keys = {
+            "_id": feed['_id'],
+        }
+        result = feeds.update(keys, feed, upsert = True)
+        logging.debug({'action' : 'put_feed', 'result' : result})
 
     def add_feed(self, hist_id, title, feed_url, site_url, cat):
         feeds = self.db.feeds
@@ -140,6 +146,11 @@ class Persistence(pykka.ThreadingActor):
         feed_id = feeds.update(keys, data, upsert = True)
         #print(feed_id)
         #print(feeds.find_one({"_id": feed_id}))
+
+    # viewpost
+
+    def get_viewposts(self):
+        return self.db.viewposts
 
     def add_viewpost(self, item_dict):
         posts = self.db.viewposts

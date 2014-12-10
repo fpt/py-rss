@@ -8,7 +8,7 @@ import io, sys
 import pprint
 import re
 import datetime
-#import dateutil.parser
+import dateutil.parser
 import logging
 import requests
 import zlib
@@ -21,9 +21,13 @@ import json
 from persistence import Persistence
 
 
+num_crawler = 4
+min_crawl_span = 60 * 10
+
 # feedparser hack
 while len(feedparser._date_handlers) > 0:
     feedparser._date_handlers.pop()
+
 
 class FeedFetcher(pykka.ThreadingActor):
     def __init__(self):
@@ -34,7 +38,6 @@ class FeedFetcher(pykka.ThreadingActor):
         init = FetcherInitiator()
         init.run(pers)
 
-        num_crawler = 3
         crawlers = []
         for i in range(num_crawler):
             crawler = CrawlerWorker.start().proxy()
@@ -70,13 +73,28 @@ class CrawlerWorker(pykka.ThreadingActor):
         super(CrawlerWorker, self).__init__()
 
     def _fetch_file(self, feed, pers):
-        r = requests.get(feed['feed_url'])
+        try:
+            r = requests.get(feed['feed_url'])
+        except:
+            logging.error({'feed_url' : feed['feed_url'], 'error' : sys.exc_info()[0]})
+            return None
+
         logging.debug({'feed_url' : feed['feed_url'], 'status_code' : r.status_code})
         if r.status_code != 200:
             return None
         body = r.text.encode("UTF-8")
         file_id = pers.put_fs(feed['_id'], body).get()
         return file_id
+
+    def _to_skip(self, feed):
+        if feed.has_key('last_crawled_at'):
+            lc_at = feed['last_crawled_at']
+            now = datetime.datetime.utcnow()
+            dsec = (now - lc_at).total_seconds()
+            logging.debug({'old' : lc_at, 'now' : now, 'dsec' : dsec, 'span' : min_crawl_span})
+            if dsec < min_crawl_span:
+                return True
+        return False
 
     def run(self, pers):
         crawl_queue = pers.get_crawl_queue().get()
@@ -94,6 +112,9 @@ class CrawlerWorker(pykka.ThreadingActor):
             if not f.has_key('feed_url'):
                 logging.info({'action' : 'crawlerworker.run', 'msg' : 'feed ignored', 'param' : f})
                 continue
+            if self._to_skip(f):
+                logging.info({'action' : 'crawlerworker.run', 'msg' : 'skipping', 'param' : f})
+                continue
 
             file_id = self._fetch_file(f, pers)
             logging.info({'action' : 'crawlerworker.run.fetch', 'result' : file_id})
@@ -101,6 +122,9 @@ class CrawlerWorker(pykka.ThreadingActor):
                 logging.info({'action' : 'crawlerworker.run', 'msg' : 'maybe bad feed', 'param' : feed_id})
                 continue
             pers.get_parsedpost_queue().get().put({"file_id": file_id, "feed_id": feed_id})
+
+            f['last_crawled_at'] = datetime.datetime.utcnow()
+            pers.put_feed(f)
 
         return 0
 
@@ -121,6 +145,26 @@ class ParserWorker:
     def _parse_feed(self, body, pers, file_id, feed_id):
         feed = feedparser.parse(body)
         for e in reversed(feed['entries']):
+            if e.has_key('updated'):
+                upd_str = e['updated']
+                upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
+                e['updated_at'] = upd_dt
+            elif e.has_key('data') and e['data'].has_key('updated'):
+                upd_str = e['data']['updated']
+                upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
+                e['updated_at'] = upd_dt
+            elif e.has_key('summary_detail') and e['summary_detail'].has_key('updated'):
+                upd_str = e['summary_detail']['updated']
+                upd_dt = dateutil.parser.parse(upd_str, yearfirst=True, dayfirst=False)
+                e['updated_at'] = upd_dt
+            elif e.has_key('published'):
+                upd_str = e['published']
+                upd_dt = dateutil.parser.parse(upd_str, yearfirst=False, dayfirst=True)
+                e['updated_at'] = upd_dt
+            else:
+                logging.info({'action' : 'ParserWorker._parse_feed', 'msg' : 'no data.updated field', 'param' : e})
+                e['updated_at'] = datetime.datetime.utcnow()
+
             parsed_id = pers.add_parsedpost(file_id, e['link'], e).get()
 
             pers.get_viewpost_queue().get().put({"parsed_id": parsed_id, "feed_id": feed_id})
