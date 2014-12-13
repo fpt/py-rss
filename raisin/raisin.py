@@ -22,7 +22,7 @@ from persistence import Persistence
 
 
 num_crawler = 4
-min_crawl_span = 60 * 10
+min_crawl_span = 60 * 3
 
 # feedparser hack
 while len(feedparser._date_handlers) > 0:
@@ -73,10 +73,28 @@ class CrawlerWorker(pykka.ThreadingActor):
         super(CrawlerWorker, self).__init__()
 
     def _fetch_file(self, feed, pers):
+        hist = pers.get_last_crawl_history(feed['_id']).get()
+
+        if hist:
+            # TODO: fail count
+            # if hist['status_code'] >= 400:
+            if hist.has_key('http-etag') or hist.has_key('http-last-modified'):
+                try:
+                    r = requests.head(feed['feed_url'])
+                except:
+                    logging.error({'action' : 'CrawlerWorker._fetch_file', 'message' : 'head failed', 'feed_url' : feed['feed_url'], 'error' : sys.exc_info()[0]})
+                    return None
+                if 'etag' in r.headers.keys() and hist.has_key('http-etag') and hist['http-etag'] == r.headers['etag']:
+                    logging.info({'action' : 'CrawlerWorker._fetch_file', 'message' : 'etag no change', 'feed_url' : feed['feed_url']})
+                    return None
+                if 'last-modified' in r.headers.keys() and hist.has_key('http-last-modified') and hist['http-last-modified'] == r.headers['last-modified']:
+                    logging.info({'action' : 'CrawlerWorker._fetch_file', 'message' : 'last-modified no change', 'feed_url' : feed['feed_url']})
+                    return None
+
         try:
             r = requests.get(feed['feed_url'])
         except:
-            logging.error({'feed_url' : feed['feed_url'], 'error' : sys.exc_info()[0]})
+            logging.error({'action' : 'CrawlerWorker._fetch_file', 'message' : 'get failed', 'feed_url' : feed['feed_url'], 'error' : sys.exc_info()[0]})
             return None
 
         hist = {'action' : 'crawl', 'feed_id' : feed['_id'], 'feed_url' : feed['feed_url'], 'status_code' : r.status_code}

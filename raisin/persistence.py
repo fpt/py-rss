@@ -82,14 +82,22 @@ class Persistence(pykka.ThreadingActor):
     def put_system_history(self, data):
         hists = self.db.system_histories
         data['created_at'] = datetime.datetime.utcnow()
-        logging.debug({'action' : 'put_system_history', 'data' : data})
+        #logging.debug({'action' : 'put_system_history', 'data' : data})
         hist_id = hists.insert(data)
         return hist_id
 
     def get_last_system_history(self, action):
-        hist = self.db.system_histories.sort('created_at',pymongo.DESCENDING).find({"action": action}).limit(1)
+        hist = self.db.system_histories.find({"action": action}).sort('created_at',pymongo.DESCENDING).limit(1)
         logging.debug({'action' : 'get_last_system_history', 'data' : hist})
         return hist
+
+    def get_last_crawl_history(self, feed_id):
+        hist = self.db.system_histories.find({"action" : 'crawl', 'feed_id' : feed_id}).sort('created_at',pymongo.DESCENDING).limit(1)
+        if hist.count() == 0:
+            return None
+        data = hist[0]
+        #logging.debug({'action' : 'get_last_crawl_history', 'data' : data})
+        return data
 
     # gridfs
 
