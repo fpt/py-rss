@@ -29,6 +29,11 @@ while len(feedparser._date_handlers) > 0:
     feedparser._date_handlers.pop()
 
 
+class AppFacade(pykka.ThreadingActor):
+    def __init__(self):
+        super(AppFacade, self).__init__()
+
+
 class FeedFetcher(pykka.ThreadingActor):
     def __init__(self):
         super(FeedFetcher, self).__init__()

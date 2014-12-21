@@ -57,20 +57,20 @@ def index():
     print("jiji")
     return render_template('index.html', name = 'yoyo')
 
-@app.route('/feeds')
+@app.route('/subscriptions')
 def feeds():
     print("jiji")
     return render_template('feeds.html', name = 'yoyo')
 
 # API
 
-@app.route('/api/1/feeds', methods=['GET'])
+@app.route('/api/1/subscriptions', methods=['GET'])
 def feeds_list():
     feeds = pers.get_feeds().get()
 
     res = [f for f in feeds.find()]
 
-    return jsonify({'feeds': res})
+    return jsonify({'subscriptions': res})
 
 @app.route('/api/1/posts', methods=['GET'])
 def posts_list():
@@ -78,31 +78,54 @@ def posts_list():
 
     return make_posts_response(posts)
 
-@app.route('/api/1/posts/<category>', methods=['GET'])
+# category
+
+@app.route('/api/1/posts/category/<category>', methods=['GET'])
 def posts_list_category(category):
     if category == 'all':
         category = None
-    posts = pers.fetch_posts(page_count, category).get()
+    posts = pers.fetch_posts(page_count, category, None).get()
 
     return make_posts_response(posts)
 
-@app.route('/api/1/posts/<category>/newer/<previd>', methods=['GET'])
+@app.route('/api/1/posts/category/<category>/newer/<previd>', methods=['GET'])
 def posts_list_category_newer(category, previd):
     if category == 'all':
         category = None
 
-    posts = pers.fetch_posts_after(page_count, category, previd).get()
+    posts = pers.fetch_posts_after(page_count, category, None, previd).get()
 
     return make_posts_response(posts)
 
-@app.route('/api/1/posts/<category>/older/<previd>', methods=['GET'])
+@app.route('/api/1/posts/category/<category>/older/<previd>', methods=['GET'])
 def posts_list_category_older(category, previd):
     if category == 'all':
         category = None
 
-    posts = pers.fetch_posts_before(page_count, category, previd).get()
+    posts = pers.fetch_posts_before(page_count, category, None, previd).get()
 
     return make_posts_response(posts)
+
+# feed
+
+@app.route('/api/1/posts/feed/<feed_id>', methods=['GET'])
+def posts_list_feed(feed_id):
+    posts = pers.fetch_posts(page_count, None, feed_id).get()
+
+    return make_posts_response(posts)
+
+@app.route('/api/1/posts/feed/<feed_id>/newer/<previd>', methods=['GET'])
+def posts_list_feed_newer(feed_id, previd):
+    posts = pers.fetch_posts_after(page_count, None, feed_id, previd).get()
+
+    return make_posts_response(posts)
+
+@app.route('/api/1/posts/feed/<feed_id>/older/<previd>', methods=['GET'])
+def posts_list_feed_older(feed_id, previd):
+    posts = pers.fetch_posts_before(page_count, None, feed_id, previd).get()
+
+    return make_posts_response(posts)
+
 
 def make_posts_response(posts):
     if len(posts) > 0:

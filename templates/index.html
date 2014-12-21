@@ -43,7 +43,7 @@
             </li>
           </ul>
         </li>
-        <li><a href="/feeds">Feeds</a></li>
+        <li><a href="/subscriptions">Subscriptions</a></li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
         <li><a href="#" ng-click="start_crawl()">Crawl</a></li>
@@ -55,7 +55,7 @@
 
 <div class="container">
     <div class="row">
-        <h3>[[active_category]]</h3>
+        <h3>[[active_category]] : [[active_feed]]</h3>
 
         <div>
             <nav>
@@ -68,7 +68,7 @@
             <div ng-repeat="post in posts" class="panel panel-default">
                 <div class="panel-heading">
                     <a href="[[post.link_url]]" target="_blank">[[post.title]]</a>
-                    [[post.feed.title]]&nbsp;([[post.updated_at]])
+                    <a href="#" ng-click="show_feed_posts(post.feed._id)">[[post.feed.title]]</a>&nbsp;([[post.updated_at]])
                     <a data-toggle="modal" data-target="#myModal[[post._id]]" href="#">
                       <i class="glyphicon glyphicon-th-large pull-right"></i>
                     </a>

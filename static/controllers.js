@@ -33,7 +33,12 @@ phonecatApp.controller('PostListCtrl', function ($scope, $http) {
   };
 
   $scope.query = function (add_url) {
-    var url = "/" + $scope.active_category;
+    var url;
+    if ($scope.active_feed) {
+        url = "/feed/" + $scope.active_feed;
+    } else {
+        url = "/category/" + $scope.active_category;
+    }
     if (add_url) {
         url += add_url;
     }
@@ -55,6 +60,14 @@ phonecatApp.controller('PostListCtrl', function ($scope, $http) {
   $scope.switch_category = function(cat_name) {
     console.log(cat_name)
     $scope.active_category = cat_name;
+    $scope.active_feed = undefined;
+    $scope.query();
+  }
+
+  $scope.show_feed_posts = function(feed_id) {
+    console.log(feed_id)
+    $scope.active_category = 'all';
+    $scope.active_feed = feed_id;
     $scope.query();
   }
 
@@ -66,9 +79,9 @@ phonecatApp.controller('PostListCtrl', function ($scope, $http) {
     });
   }
 
-  $http.get('/api/1/feeds').success(function(data) {
+  $http.get('/api/1/subscriptions').success(function(data) {
     console.log(data)
-    $scope.feeds = data.feeds;
+    $scope.feeds = data.subscriptions;
   });
 
   $scope.active_category = 'all';

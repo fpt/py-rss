@@ -118,12 +118,20 @@ class Persistence(pykka.ThreadingActor):
         else:
             None
 
-    def add_parsedpost(self, feed_id, file_id, post_url, data):
+    def add_parsedpost(self, feed_id, file_id, post_url, data, force_update = False):
         posts = self.db.parsedposts
 
         keys = {
             "post_url": post_url,
         }
+
+        if not force_update:
+            cur = posts.find(keys).limit(1)
+            if cur and cur.count() > 0:
+                post = cur[0]
+                logging.debug({'action' : 'Persistence.add_parsedpost', 'msg' : 'skipped', 'parsedpost_id' : post['_id']})
+                return post['_id']
+
         data = {
             'feed_id' : feed_id,
             'file_id' : file_id,
@@ -149,7 +157,7 @@ class Persistence(pykka.ThreadingActor):
             "_id": feed['_id'],
         }
         result = feeds.update(keys, feed, upsert = True)
-        logging.debug({'action' : 'put_feed', 'result' : result})
+        logging.debug({'action' : 'Persistence.put_feed', 'feed_id' : feed['_id'], 'result' : result})
 
     def add_feed(self, hist_id, title, feed_url, site_url, cat):
         feeds = self.db.feeds
@@ -174,12 +182,20 @@ class Persistence(pykka.ThreadingActor):
     def get_viewposts(self):
         return self.db.viewposts
 
-    def add_viewpost(self, item_dict):
+    def add_viewpost(self, item_dict, force_update=False):
         posts = self.db.viewposts
 
         if not item_dict.has_key('link_url'):
             return 1 # error
         idx_dict = {'link_url': item_dict['link_url']}
+
+        if not force_update:
+            cur = posts.find(idx_dict).limit(1)
+            if cur and cur.count() > 0:
+                post = cur[0]
+                logging.debug({'action' : 'Persistence.add_viewpost', 'msg' : 'skipped', 'viewpost_id' : post['_id']})
+                return
+
         result = posts.update(idx_dict, item_dict, upsert = True)
         #logging.debug(result)
 
@@ -203,34 +219,38 @@ class Persistence(pykka.ThreadingActor):
             post['summary'] = summary
         return post
 
-    def fetch_posts_after(self, count = 10, category = None, post_id = None, unread_only = False):
-        res = self.fetch_posts(count, category, None, post_id, unread_only)
+    def fetch_posts_after(self, count = 10, category = None, feed_id = None, post_id = None, unread_only = False):
+        res = self.fetch_posts(count, category, feed_id, None, post_id, unread_only)
         if len(res) < count:
-            res = self.fetch_posts(count, category, None, None, unread_only)
+            res = self.fetch_posts(count, category, feed_id, None, None, unread_only)
         return res
 
-    def fetch_posts_before(self, count = 10, category = None, post_id = None, unread_only = False):
-        res = self.fetch_posts(count, category, post_id, None, unread_only)
+    def fetch_posts_before(self, count = 10, category = None, feed_id = None, post_id = None, unread_only = False):
+        res = self.fetch_posts(count, category, feed_id, post_id, None, unread_only)
         # temporary
         if len(res) < count:
-            res = self.fetch_posts(count, category, None, None, unread_only)
+            res = self.fetch_posts(count, category, feed_id, None, None, unread_only)
         return res
 
-    def fetch_posts(self, count = 10, category = None, prev_post_id = None, after_post_id = None, unread_only = False):
-        feeds = self.get_feeds()
+    def fetch_posts(self, count = 10, category = None, feed_id = None, prev_post_id = None, after_post_id = None, unread_only = False):
+        feeds_find_dic = None
         if category:
-            cat_feeds = feeds.find({'category': category})
-        else:
-            cat_feeds = feeds.find()
+            feeds_find_dic = {'category': category}
+        elif feed_id:
+            feeds_find_dic = {'_id': ObjectId(feed_id)}
 
+        feeds = self.get_feeds()
         posts = self.get_viewposts()
+        cat_feeds = feeds.find(feeds_find_dic)
 
+        print('-----------')
         print(category)
+        print(feed_id)
         print(prev_post_id)
-        print(cat_feeds)
+        print('-----------')
         feeds_dic = {f['_id'] : f for f in cat_feeds}
         find_dic = dict()
-        if category:
+        if category or feed_id:
             find_dic['feed_id'] = {'$in': feeds_dic.keys()}
         if prev_post_id:
             find_dic['_id'] = {'$lt': ObjectId(prev_post_id)}
