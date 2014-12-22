@@ -6,10 +6,7 @@ from flask_oauth import OAuth
 import logging
 from logging.handlers import RotatingFileHandler
 
-from raisin.raisin import Persistence
-from raisin.raisin import FeedFetcher
-from raisin.raisin import OpmlImporter
-import pprint
+from raisin.raisin import AppFacade
 from tools import jsonify
 import os
 
@@ -49,8 +46,7 @@ app.debug = DEBUG
 app.secret_key = SECRET_KEY
 
 # app global
-pers = None
-crawler = None
+raisinapp = None
 
 @app.route('/')
 def index():
@@ -66,15 +62,13 @@ def feeds():
 
 @app.route('/api/1/subscriptions', methods=['GET'])
 def feeds_list():
-    feeds = pers.get_feeds().get()
+    subs = raisinapp.get_subscriptions()
 
-    res = [f for f in feeds.find()]
-
-    return jsonify({'subscriptions': res})
+    return jsonify({'subscriptions': subs})
 
 @app.route('/api/1/posts', methods=['GET'])
 def posts_list():
-    posts = pers.fetch_posts(page_count).get()
+    posts = raisinapp.fetch_posts(page_count)
 
     return make_posts_response(posts)
 
@@ -84,7 +78,7 @@ def posts_list():
 def posts_list_category(category):
     if category == 'all':
         category = None
-    posts = pers.fetch_posts(page_count, category, None).get()
+    posts = raisinapp.fetch_posts(page_count, category, None)
 
     return make_posts_response(posts)
 
@@ -93,7 +87,7 @@ def posts_list_category_newer(category, previd):
     if category == 'all':
         category = None
 
-    posts = pers.fetch_posts_after(page_count, category, None, previd).get()
+    posts = raisinapp.fetch_posts_after(page_count, category, None, previd)
 
     return make_posts_response(posts)
 
@@ -102,7 +96,7 @@ def posts_list_category_older(category, previd):
     if category == 'all':
         category = None
 
-    posts = pers.fetch_posts_before(page_count, category, None, previd).get()
+    posts = raisinapp.fetch_posts_before(page_count, category, None, previd)
 
     return make_posts_response(posts)
 
@@ -110,19 +104,19 @@ def posts_list_category_older(category, previd):
 
 @app.route('/api/1/posts/feed/<feed_id>', methods=['GET'])
 def posts_list_feed(feed_id):
-    posts = pers.fetch_posts(page_count, None, feed_id).get()
+    posts = raisinapp.fetch_posts(page_count, None, feed_id)
 
     return make_posts_response(posts)
 
 @app.route('/api/1/posts/feed/<feed_id>/newer/<previd>', methods=['GET'])
 def posts_list_feed_newer(feed_id, previd):
-    posts = pers.fetch_posts_after(page_count, None, feed_id, previd).get()
+    posts = raisinapp.fetch_posts_after(page_count, None, feed_id, previd)
 
     return make_posts_response(posts)
 
 @app.route('/api/1/posts/feed/<feed_id>/older/<previd>', methods=['GET'])
 def posts_list_feed_older(feed_id, previd):
-    posts = pers.fetch_posts_before(page_count, None, feed_id, previd).get()
+    posts = raisinapp.fetch_posts_before(page_count, None, feed_id, previd)
 
     return make_posts_response(posts)
 
@@ -135,11 +129,7 @@ def make_posts_response(posts):
 
 @app.route('/api/1/crawl', methods=['GET'])
 def crawl_trigger():
-    global crawler
-    if not crawler:
-        crawler = FeedFetcher.start().proxy()
-
-    crawler.fetch(pers)
+    raisinapp.post_start_crawl()
 
     return jsonify({'result' : 'success'})
 
@@ -217,8 +207,9 @@ def static_proxy(filepath):
 # public methods
 
 def app_initialize(mongo_url):
-    global pers
-    pers = Persistence.start(mongo_url).proxy()
+    global raisinapp
+    raisinapp = AppFacade(mongo_url)
+    raisinapp.initialize()
 
     handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
     handler.setLevel(logging.INFO)
@@ -226,12 +217,8 @@ def app_initialize(mongo_url):
 
 
 def app_terminate():
-    global pers, crawler
-
-    if pers:
-        pers.stop()
-    if crawler:
-        crawler.stop()
+    global raisinapp
+    raisinapp.terminate()
 
 
 # http://flask.pocoo.org/docs/0.10/quickstart/#static-files

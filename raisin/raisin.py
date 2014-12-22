@@ -29,9 +29,43 @@ while len(feedparser._date_handlers) > 0:
     feedparser._date_handlers.pop()
 
 
-class AppFacade(pykka.ThreadingActor):
-    def __init__(self):
-        super(AppFacade, self).__init__()
+class AppFacade:
+    def __init__(self, mongo_url):
+        self.mongo_url = mongo_url
+        self.pers = None
+        self.crawler = None
+
+    def initialize(self):
+        self.pers = Persistence.start(self.mongo_url).proxy()
+
+    def terminate(self):
+        if self.pers:
+            self.pers.stop()
+        if self.crawler:
+            self.crawler.stop()
+
+    def post_start_crawl(self):
+        if not self.crawler:
+            self.crawler = FeedFetcher.start().proxy()
+
+        self.crawler.fetch(self.pers)
+
+    def get_subscriptions(self):
+        feeds = self.pers.get_feeds().get()
+
+        return [f for f in feeds.find()]
+
+    def fetch_posts(self, page_count, category, feed_id):
+        posts = self.pers.fetch_posts(page_count, category, feed_id).get()
+        return posts
+
+    def fetch_posts_after(self, page_count, category = None, feed_id = None, prev_id = None):
+        posts = self.pers.fetch_posts_after(page_count, category, feed_id, prev_id).get()
+        return posts
+
+    def fetch_posts_before(self, page_count, category = None, feed_id = None, prev_id = None):
+        posts = self.pers.fetch_posts_before(page_count, None, feed_id, prev_id).get()
+        return posts
 
 
 class FeedFetcher(pykka.ThreadingActor):
