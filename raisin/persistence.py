@@ -258,7 +258,14 @@ class Persistence(pykka.ThreadingActor):
             find_dic['_id'] = {'$gt': ObjectId(after_post_id)}
         print(find_dic)
 
-        page_posts = posts.find(find_dic).limit(count).sort('_id', direction = pymongo.DESCENDING)
+        if after_post_id:
+            cur = posts.find(find_dic).sort('_id', direction = pymongo.DESCENDING)
+            cnt = cur.count()
+            if cnt <= count:
+                return []
+            page_posts = cur.skip(cnt - count)
+        else:
+            page_posts = posts.find(find_dic).limit(count).sort('_id', direction = pymongo.DESCENDING)
 
         res = [self._process_post(feeds_dic, p) for p in page_posts]
 
